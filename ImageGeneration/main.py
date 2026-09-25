@@ -15,7 +15,6 @@
 
 """Training and evaluation"""
 
-import run_lib
 import run_lib_reflow
 import run_lib_pytorch
 from absl import app
@@ -53,13 +52,13 @@ def main(argv):
     if 'pytorch' in FLAGS.config.data.dataset.lower():
         run_lib_pytorch.train(FLAGS.config, FLAGS.workdir)
     else:
-        run_lib.train(FLAGS.config, FLAGS.workdir)
+        raise ValueError(f"Dataset {FLAGS.config.data.dataset} is not supported. The name must contain 'Pytorch'.")
   elif FLAGS.mode == "eval":
     # Run the evaluation pipeline
     if 'pytorch' in FLAGS.config.data.dataset.lower():
         run_lib_pytorch.evaluate(FLAGS.config, FLAGS.workdir, FLAGS.eval_folder)
     else:
-        run_lib.evaluate(FLAGS.config, FLAGS.workdir, FLAGS.eval_folder)
+        raise ValueError(f"Dataset {FLAGS.config.data.dataset} is not supported. The name must contain 'Pytorch'.")
   elif  FLAGS.mode == "reflow":
     run_lib_reflow.finetune_reflow(FLAGS.config, FLAGS.workdir)
   else:
