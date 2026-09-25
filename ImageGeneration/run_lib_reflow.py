@@ -23,7 +23,6 @@ import time
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_gan as tfgan
 import logging
 # Keep the import below for registering all model definitions
 from models import ddpm, ncsnv2, ncsnpp
@@ -32,7 +31,6 @@ import sampling
 from models import utils as mutils
 from models.ema import ExponentialMovingAverage
 import datasets
-import evaluation
 import likelihood
 import sde_lib
 from absl import flags
