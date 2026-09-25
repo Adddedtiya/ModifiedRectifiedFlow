@@ -208,3 +208,4 @@ tags
 # End of https://www.toptal.com/developers/gitignore/api/linux,python,vim
 
 logs/**
+experiment_docs/
