@@ -233,7 +233,7 @@ def evaluate(config,
     likelihood_fn = likelihood.get_likelihood_fn_rf(sde, inverse_scaler)
 
   # Build the sampling function when sampling is enabled
-  if (config.eval.enable_sampling) or (config.eval.enable_figures_only):
+  if (config.eval.enable_sampling) or (config.eval.get('enable_figures_only', False)):
     sampling_shape = (config.eval.batch_size,
                       config.data.num_channels,
                       config.data.image_size, config.data.image_size)
@@ -330,7 +330,7 @@ def evaluate(config,
           fout.write(io_buffer.getvalue())
    
 
-    if config.eval.enable_figures_only:
+    if config.eval.get('enable_figures_only', False):
       import torchvision
       num_sampling_rounds = config.eval.num_samples // config.eval.batch_size + 1
       for r in range(num_sampling_rounds):
