@@ -44,5 +44,15 @@ def get_pytorch_dataset(config):
     elif config.data.dataset == 'AFHQ-CAT-Pytorch': 
         transform = tr.Resize(256)
         return tds.afhq_dataset(config.training.data_dir, config.training.batch_size, 'cat', transform), tds.afhq_dataset(config.training.data_dir, config.training.batch_size, 'cat', transform)
+    elif config.data.dataset == 'Folder-Pytorch':
+        transform = tr.Compose([tr.Resize(config.data.image_size), tr.CenterCrop(config.data.image_size)])
+        return tds.folder_dataset(config.training.data_dir, transform), tds.folder_dataset(config.training.data_dir, transform)
+    elif config.data.dataset == 'CIFAR10-Pytorch':
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'experiment_data')
+        transform = [tr.ToTensor()]
+        if config.data.random_flip:
+            transform.append(tr.RandomHorizontalFlip())
+        transform = tr.Compose(transform)
+        return tds.cifar10_dataset(data_dir, True, transform), tds.cifar10_dataset(data_dir, False, transform)
     else:
         assert False, 'Not implemented'
