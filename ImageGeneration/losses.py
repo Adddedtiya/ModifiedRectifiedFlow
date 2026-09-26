@@ -24,7 +24,7 @@ from sde_lib import RectifiedFlow
 
 
 def get_optimizer(config, params):
-  """Returns a flax optimizer object based on `config`."""
+  """Returns a PyTorch optimizer object based on `config`."""
   if config.optim.optimizer == 'Adam':
     optimizer = optim.Adam(params, lr=config.optim.lr, betas=(config.optim.beta1, 0.999), eps=config.optim.eps,
                            weight_decay=config.optim.weight_decay)
@@ -56,7 +56,7 @@ def get_rectified_flow_loss_fn(sde, train, reduce_mean=True, eps=1e-3):
   """Create a loss function for training with rectified flow.
 
   Args:
-    sde: An `sde_lib.SDE` object that represents the forward SDE.
+    sde: A `sde_lib.RectifiedFlow` object.
     train: `True` for training loss and `False` for evaluation loss.
     reduce_mean: If `True`, average the loss across data dimensions. Otherwise sum the loss across data dimensions.
     eps: A `float` number. The smallest time step to sample from.
@@ -138,19 +138,17 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
   """Create a one-step training/evaluation function.
 
   Args:
-    sde: An `sde_lib.SDE` object that represents the forward SDE.
+    sde: A `sde_lib.RectifiedFlow` object.
     optimize_fn: An optimization function.
     reduce_mean: If `True`, average the loss across data dimensions. Otherwise sum the loss across data dimensions.
-    continuous: `True` indicates that the model is defined to take continuous time steps.
-    likelihood_weighting: If `True`, weight the mixture of score matching losses according to
-      https://arxiv.org/abs/2101.09258; otherwise use the weighting recommended by our paper.
+    continuous: Must be `False`. Rectified flow does not support continuous training.
+    likelihood_weighting: Must be `False`.
 
   Returns:
     A one-step function for training or evaluation.
   """
   if continuous:
-    loss_fn = get_sde_loss_fn(sde, train, reduce_mean=reduce_mean,
-                              continuous=True, likelihood_weighting=likelihood_weighting)
+    raise NotImplementedError("Continuous training is not supported. Set training.continuous to False.")
   else:
     assert not likelihood_weighting, "Likelihood weighting is not supported for original SMLD/DDPM training."
     if isinstance(sde, RectifiedFlow):
@@ -161,11 +159,8 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
   def step_fn(state, batch):
     """Running one step of training or evaluation.
 
-    This function will undergo `jax.lax.scan` so that multiple steps can be pmapped and jit-compiled together
-    for faster execution.
-
     Args:
-      state: A dictionary of training information, containing the score model, optimizer,
+      state: A dictionary of training information, containing the model, optimizer,
        EMA status, and number of optimization steps.
       batch: A mini-batch of training/evaluation data.
 

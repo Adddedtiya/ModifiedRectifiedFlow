@@ -17,7 +17,6 @@
 """
 
 import torch
-import sde_lib
 import numpy as np
 
 
@@ -36,7 +35,6 @@ def register_model(cls=None, *, name=None):
       raise ValueError(f'Already registered model with name: {local_name}')
     _MODELS[local_name] = cls
     return cls
-  #print(cls, name)
   if cls is None:
     return _register
   else:
@@ -44,7 +42,6 @@ def register_model(cls=None, *, name=None):
 
 
 def get_model(name):
-  #print(_MODELS)
   return _MODELS[name]
 
 
@@ -53,7 +50,7 @@ def get_sigmas(config):
   Args:
     config: A ConfigDict object parsed from the config file
   Returns:
-    sigmas: a jax numpy arrary of noise levels
+    sigmas: a numpy array of noise levels
   """
   sigmas = np.exp(
     np.linspace(np.log(config.model.sigma_max), np.log(config.model.sigma_min), config.model.num_scales))
@@ -87,7 +84,7 @@ def get_ddpm_params(config):
 
 
 def create_model(config):
-  """Create the score model."""
+  """Create the model."""
   model_name = config.model.name
   score_model = get_model(model_name)(config)
   score_model = score_model.to(config.device)
@@ -102,10 +99,10 @@ def create_model(config):
 
 
 def get_model_fn(model, train=False):
-  """Create a function to give the output of the score-based model.
+  """Create a function to give the output of the model.
 
   Args:
-    model: The score model.
+    model: The model.
     train: `True` for training and `False` for evaluation.
 
   Returns:
@@ -113,7 +110,7 @@ def get_model_fn(model, train=False):
   """
 
   def model_fn(x, labels):
-    """Compute the output of the score-based model.
+    """Compute the output of the model.
 
     Args:
       x: A mini-batch of input data.
@@ -121,7 +118,7 @@ def get_model_fn(model, train=False):
         for different models.
 
     Returns:
-      A tuple of (model output, new mutable states)
+      The model output.
     """
     if not train:
       model.eval()
@@ -131,58 +128,6 @@ def get_model_fn(model, train=False):
       return model(x, labels)
 
   return model_fn
-
-
-def get_score_fn(sde, model, train=False, continuous=False):
-  """Wraps `score_fn` so that the model output corresponds to a real time-dependent score function.
-
-  Args:
-    sde: An `sde_lib.SDE` object that represents the forward SDE.
-    model: A score model.
-    train: `True` for training and `False` for evaluation.
-    continuous: If `True`, the score-based model is expected to directly take continuous time steps.
-
-  Returns:
-    A score function.
-  """
-  model_fn = get_model_fn(model, train=train)
-
-  if isinstance(sde, sde_lib.VPSDE) or isinstance(sde, sde_lib.subVPSDE):
-    def score_fn(x, t):
-      # Scale neural network output by standard deviation and flip sign
-      if continuous or isinstance(sde, sde_lib.subVPSDE):
-        # For VP-trained models, t=0 corresponds to the lowest noise level
-        # The maximum value of time embedding is assumed to 999 for
-        # continuously-trained models.
-        labels = t * 999
-        score = model_fn(x, labels)
-        std = sde.marginal_prob(torch.zeros_like(x), t)[1]
-      else:
-        # For VP-trained models, t=0 corresponds to the lowest noise level
-        labels = t * (sde.N - 1)
-        score = model_fn(x, labels)
-        std = sde.sqrt_1m_alphas_cumprod.to(labels.device)[labels.long()]
-
-      score = -score / std[:, None, None, None]
-      return score
-
-  elif isinstance(sde, sde_lib.VESDE):
-    def score_fn(x, t):
-      if continuous:
-        labels = sde.marginal_prob(torch.zeros_like(x), t)[1]
-      else:
-        # For VE-trained models, t=0 corresponds to the highest noise level
-        labels = sde.T - t
-        labels *= sde.N - 1
-        labels = torch.round(labels).long()
-
-      score = model_fn(x, labels)
-      return score
-
-  else:
-    raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
-
-  return score_fn
 
 
 def to_flattened_numpy(x):

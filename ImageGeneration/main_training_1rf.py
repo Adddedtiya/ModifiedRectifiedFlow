@@ -36,7 +36,7 @@ def train(config, workdir):
 
   Args:
     config: Configuration to use.
-    workdir: Working directory for checkpoints and TF summaries. If this
+    workdir: Working directory for checkpoints and TensorBoard summaries. If this
       contains checkpoint training will be resumed from the latest checkpoint.
   """
 
@@ -101,7 +101,6 @@ def train(config, workdir):
 
   num_train_steps = config.training.n_iters
 
-  # In case there are multiple hosts (e.g., TPU pods), only log to host 0
   logging.info("Starting training loop at step %d." % (initial_step,))
 
   step = initial_step - 1
@@ -161,7 +160,6 @@ def main(argv):
   # Create the working directory
   os.makedirs(FLAGS.workdir, exist_ok=True)
   # Set logger so that it outputs to both console and file
-  # Make logging work for both disk and Google Cloud Storage
   gfile_stream = open(os.path.join(FLAGS.workdir, 'stdout.txt'), 'w')
   handler = logging.StreamHandler(gfile_stream)
   formatter = logging.Formatter('%(levelname)s - %(filename)s - %(asctime)s - %(message)s')

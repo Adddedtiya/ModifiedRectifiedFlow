@@ -16,21 +16,13 @@
 # pylint: skip-file
 # pytype: skip-file
 """Various sampling methods."""
-import functools
 
 import torch
 import numpy as np
-import abc
 
-from models.utils import from_flattened_numpy, to_flattened_numpy, get_score_fn
+from models.utils import from_flattened_numpy, to_flattened_numpy
 from scipy import integrate
-import sde_lib
 from models import utils as mutils
-
-import matplotlib.pyplot as plt
-
-import torchvision
-from tqdm import tqdm
 
 
 def get_sampling_fn(config, sde, shape, inverse_scaler, eps):
@@ -38,14 +30,14 @@ def get_sampling_fn(config, sde, shape, inverse_scaler, eps):
 
   Args:
     config: A `ml_collections.ConfigDict` object that contains all configuration information.
-    sde: A `sde_lib.SDE` object that represents the forward SDE.
+    sde: A `sde_lib.RectifiedFlow` object.
     shape: A sequence of integers representing the expected shape of a single sample.
     inverse_scaler: The inverse data normalizer function.
-    eps: A `float` number. The reverse-time SDE is only integrated to `eps` for numerical stability.
+    eps: A `float` number. Not used by the rectified flow sampler.
 
   Returns:
-    A function that takes random states and a replicated training state and outputs samples with the
-      trailing dimensions matching `shape`.
+    A sampling function. It takes the model and returns the samples and the number of
+      function evaluations.
   """
 
   sampler_name = config.sampling.method

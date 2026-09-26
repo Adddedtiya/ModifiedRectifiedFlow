@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # pylint: skip-file
-"""Training and evaluation for score-based generative models. """
+"""Training and evaluation for rectified flow models."""
 
 import io
 import os
@@ -45,7 +45,7 @@ def train(config, workdir):
 
   Args:
     config: Configuration to use.
-    workdir: Working directory for checkpoints and TF summaries. If this
+    workdir: Working directory for checkpoints and TensorBoard summaries. If this
       contains checkpoint training will be resumed from the latest checkpoint.
   """
 
@@ -110,7 +110,6 @@ def train(config, workdir):
 
   num_train_steps = config.training.n_iters
 
-  # In case there are multiple hosts (e.g., TPU pods), only log to host 0
   logging.info("Starting training loop at step %d." % (initial_step,))
 
   step = initial_step - 1
@@ -182,9 +181,6 @@ def evaluate(config,
   os.makedirs(eval_dir, exist_ok=True)
 
   # Build data pipeline
-  #train_ds, eval_ds, _ = datasets.get_dataset(config,
-  #                                            uniform_dequantization=config.data.uniform_dequantization,
-  #                                            evaluation=True)
   train_ds, eval_ds = datasets.get_pytorch_dataset(config)
 
   # Create data normalizer and its inverse
@@ -220,8 +216,6 @@ def evaluate(config,
 
 
   # Create data loaders for likelihood evaluation. Only evaluate on uniformly dequantized data
-  #train_ds_bpd, eval_ds_bpd, _ = datasets.get_dataset(config,
-  #                                                    uniform_dequantization=True, evaluation=True)
   train_ds_bpd, eval_ds_bpd = datasets.get_pytorch_dataset(config)   ###NOTE: XC: fix later
 
   if config.eval.bpd_dataset.lower() == 'train':
@@ -236,7 +230,7 @@ def evaluate(config,
 
   # Build the likelihood computation function when likelihood is enabled
   if config.eval.enable_bpd:
-    likelihood_fn = likelihood.get_likelihood_fn(sde, inverse_scaler)
+    likelihood_fn = likelihood.get_likelihood_fn_rf(sde, inverse_scaler)
 
   # Build the sampling function when sampling is enabled
   if (config.eval.enable_sampling) or (config.eval.enable_figures_only):
@@ -283,7 +277,7 @@ def evaluate(config,
         if (i + 1) % 1000 == 0:
           logging.info("Finished %dth step loss evaluation" % (i + 1))
 
-      # Save loss values to disk or Google Cloud Storage
+      # Save loss values to disk
       all_losses = np.asarray(all_losses)
       with open(os.path.join(eval_dir, f"ckpt_{ckpt}_loss.npz"), "wb") as fout:
         io_buffer = io.BytesIO()
@@ -306,7 +300,7 @@ def evaluate(config,
           logging.info(
             "ckpt: %d, repeat: %d, batch: %d, mean bpd: %6f" % (ckpt, repeat, batch_id, np.mean(np.asarray(bpds))))
           bpd_round_id = batch_id + len(ds_bpd) * repeat
-          # Save bits/dim to disk or Google Cloud Storage
+          # Save bits/dim to disk
           with open(os.path.join(eval_dir,
                                  f"{config.eval.bpd_dataset}_ckpt_{ckpt}_bpd_{bpd_round_id}.npz"),
                     "wb") as fout:
@@ -328,7 +322,7 @@ def evaluate(config,
         samples = np.clip(samples.permute(0, 2, 3, 1).cpu().numpy() * 255., 0, 255).astype(np.uint8)
         samples = samples.reshape(
           (-1, config.data.image_size, config.data.image_size, config.data.num_channels))
-        # Write samples to disk or Google Cloud Storage
+        # Write samples to disk
         with open(
             os.path.join(this_sample_dir, f"samples_{r}.npz"), "wb") as fout:
           io_buffer = io.BytesIO()

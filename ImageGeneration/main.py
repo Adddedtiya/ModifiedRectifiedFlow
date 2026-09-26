@@ -39,7 +39,6 @@ def main(argv):
     # Create the working directory
     os.makedirs(FLAGS.workdir, exist_ok=True)
     # Set logger so that it outputs to both console and file
-    # Make logging work for both disk and Google Cloud Storage
     gfile_stream = open(os.path.join(FLAGS.workdir, 'stdout.txt'), 'w')
     handler = logging.StreamHandler(gfile_stream)
     formatter = logging.Formatter('%(levelname)s - %(filename)s - %(asctime)s - %(message)s')

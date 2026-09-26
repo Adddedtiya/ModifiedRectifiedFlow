@@ -14,12 +14,9 @@
 # limitations under the License.
 
 # pylint: skip-file
-"""Training and evaluation for score-based generative models. """
+"""Reflow training for rectified flow models."""
 
-import gc
-import io
 import os
-import time
 
 import numpy as np
 import logging
@@ -30,7 +27,6 @@ import sampling
 from models import utils as mutils
 from models.ema import ExponentialMovingAverage
 import datasets
-import likelihood
 import sde_lib
 from absl import flags
 import torch
@@ -46,7 +42,7 @@ def finetune_reflow(config, workdir):
 
   Args:
     config: Configuration to use.
-    workdir: Working directory for checkpoints and TF summaries. If this
+    workdir: Working directory for checkpoints and TensorBoard summaries. If this
       contains checkpoint training will be resumed from the latest checkpoint.
   """
 
@@ -86,21 +82,11 @@ def finetune_reflow(config, workdir):
   state = restore_checkpoint(checkpoint_meta_dir, state, config.device)
   initial_step = int(state['step'])
 
-  # Create data normalizer and its inverse
-  scaler = datasets.get_data_scaler(config)
+  # Create the inverse data normalizer
   inverse_scaler = datasets.get_data_inverse_scaler(config)
 
   # Setup SDEs
-  if config.training.sde.lower() == 'vpsde':
-    sde = sde_lib.VPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
-    sampling_eps = 1e-3
-  elif config.training.sde.lower() == 'subvpsde':
-    sde = sde_lib.subVPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
-    sampling_eps = 1e-3
-  elif config.training.sde.lower() == 'vesde':
-    sde = sde_lib.VESDE(sigma_min=config.model.sigma_min, sigma_max=config.model.sigma_max, N=config.model.num_scales)
-    sampling_eps = 1e-5
-  elif config.training.sde.lower() == 'rectified_flow':
+  if config.training.sde.lower() == 'rectified_flow':
     sde = sde_lib.RectifiedFlow(init_type=config.sampling.init_type, noise_scale=config.sampling.init_noise_scale, reflow_flag=True, reflow_t_schedule=config.reflow.reflow_t_schedule, reflow_loss=config.reflow.reflow_loss, use_ode_sampler=config.sampling.use_ode_sampler)
     sampling_eps = 1e-3
   else:
@@ -191,11 +177,9 @@ def finetune_reflow(config, workdir):
       assert False, 'Not implemented'
 
   print('Initial step of the model:', initial_step)
-  # In case there are multiple hosts (e.g., TPU pods), only log to host 0
   logging.info("Starting reflow training loop at step %d." % (initial_step,))
 
   for step in range(initial_step, num_train_steps + 1):
-    # Convert data to JAX arrays and normalize them. Use ._numpy() to avoid copy.
     if config.reflow.reflow_type == 'train_reflow':
         indices = torch.randperm(len(data_cllt))[:config.training.batch_size]
         data = data_cllt[indices].to(config.device).float()

@@ -478,7 +478,6 @@ class ResidualBlock(nn.Module):
         self.normalize2 = normalization(output_dim)
         self.conv2 = ncsn_conv3x3(output_dim, output_dim, dilation=dilation)
       else:
-        # conv_shortcut = nn.Conv2d ### Something wierd here.
         conv_shortcut = partial(ncsn_conv1x1)
         self.conv1 = ncsn_conv3x3(input_dim, output_dim)
         self.normalize2 = normalization(output_dim)
@@ -513,14 +512,11 @@ class ResidualBlock(nn.Module):
 ###########################################################################
 
 def get_timestep_embedding(timesteps, embedding_dim, max_positions=10000):
-  assert len(timesteps.shape) == 1  # and timesteps.dtype == tf.int32
+  assert len(timesteps.shape) == 1
   half_dim = embedding_dim // 2
   # magic number 10000 is from transformers
   emb = math.log(max_positions) / (half_dim - 1)
-  # emb = math.log(2.) / (half_dim - 1)
   emb = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=timesteps.device) * -emb)
-  # emb = tf.range(num_embeddings, dtype=jnp.float32)[:, None] * emb[None, :]
-  # emb = tf.cast(timesteps, dtype=jnp.float32)[:, None] * emb[None, :]
   emb = timesteps.float()[:, None] * emb[None, :]
   emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
   if embedding_dim % 2 == 1:  # zero pad

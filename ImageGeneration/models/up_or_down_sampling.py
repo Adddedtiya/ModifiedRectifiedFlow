@@ -70,13 +70,10 @@ def naive_downsample_2d(x, factor=2):
 
 
 def upsample_conv_2d(x, w, k=None, factor=2, gain=1):
-  """Fused `upsample_2d()` followed by `tf.nn.conv2d()`.
+  """Fused `upsample_2d()` followed by a 2D convolution.
 
      Padding is performed only once at the beginning, not between the
      operations.
-     The fused op is considerably more efficient than performing the same
-     calculation
-     using standard TensorFlow ops. It supports gradients of arbitrary order.
      Args:
        x:            Input tensor of the shape `[N, C, H, W]` or `[N, H, W,
          C]`.
@@ -101,7 +98,6 @@ def upsample_conv_2d(x, w, k=None, factor=2, gain=1):
   convH = w.shape[2]
   convW = w.shape[3]
   inC = w.shape[1]
-  outC = w.shape[0]
 
   assert convW == convH
 
@@ -127,27 +123,15 @@ def upsample_conv_2d(x, w, k=None, factor=2, gain=1):
   w = torch.reshape(w, (num_groups * inC, -1, convH, convW))
 
   x = F.conv_transpose2d(x, w, stride=stride, output_padding=output_padding, padding=0)
-  ## Original TF code.
-  # x = tf.nn.conv2d_transpose(
-  #     x,
-  #     w,
-  #     output_shape=output_shape,
-  #     strides=stride,
-  #     padding='VALID',
-  #     data_format=data_format)
-  ## JAX equivalent
 
   return upfirdn2d(x, torch.tensor(k, device=x.device),
                    pad=((p + 1) // 2 + factor - 1, p // 2 + 1))
 
 
 def conv_downsample_2d(x, w, k=None, factor=2, gain=1):
-  """Fused `tf.nn.conv2d()` followed by `downsample_2d()`.
+  """Fused 2D convolution followed by `downsample_2d()`.
 
     Padding is performed only once at the beginning, not between the operations.
-    The fused op is considerably more efficient than performing the same
-    calculation
-    using standard TensorFlow ops. It supports gradients of arbitrary order.
     Args:
         x:            Input tensor of the shape `[N, C, H, W]` or `[N, H, W,
           C]`.
