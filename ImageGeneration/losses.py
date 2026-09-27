@@ -134,7 +134,8 @@ def get_rectified_flow_loss_fn(sde, train, reduce_mean=True, eps=1e-3):
 
 
 
-def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True, likelihood_weighting=False):
+def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True, likelihood_weighting=False,
+                num_micro_batches=1):
   """Create a one-step training/evaluation function.
 
   Args:
@@ -143,6 +144,8 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
     reduce_mean: If `True`, average the loss across data dimensions. Otherwise sum the loss across data dimensions.
     continuous: Must be `False`. Rectified flow does not support continuous training.
     likelihood_weighting: Must be `False`.
+    num_micro_batches: For training, the number of equal parts of each batch. The gradients of the parts are added
+      before the optimizer step (gradient accumulation). `1` uses the full batch in one pass.
 
   Returns:
     A one-step function for training or evaluation.
@@ -171,8 +174,15 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
     if train:
       optimizer = state['optimizer']
       optimizer.zero_grad()
-      loss = loss_fn(model, batch)
-      loss.backward()
+      if num_micro_batches == 1:
+        loss = loss_fn(model, batch)
+        loss.backward()
+      else:
+        loss = 0.
+        for micro_batch in torch.chunk(batch, num_micro_batches):
+          micro_loss = loss_fn(model, micro_batch) / num_micro_batches
+          micro_loss.backward()
+          loss += micro_loss.detach()
       optimize_fn(optimizer, model.parameters(), step=state['step'])
       state['step'] += 1
       state['ema'].update(model.parameters())

@@ -28,16 +28,19 @@ FLAGS = flags.FLAGS
 config_flags.DEFINE_config_file(
   "config", None, "Training configuration.", lock_config=True)
 flags.DEFINE_string("workdir", None, "Work directory.")
+flags.DEFINE_integer("num_micro_batches", 1, "Number of parts of each training batch, for gradient accumulation.",
+                     lower_bound=1)
 flags.mark_flags_as_required(["workdir", "config"])
 
 
-def train(config, workdir):
+def train(config, workdir, num_micro_batches=1):
   """Runs the training pipeline.
 
   Args:
     config: Configuration to use.
     workdir: Working directory for checkpoints and TensorBoard summaries. If this
       contains checkpoint training will be resumed from the latest checkpoint.
+    num_micro_batches: Number of equal parts of each training batch, for gradient accumulation.
   """
 
   # Create directories for experimental logs
@@ -86,9 +89,15 @@ def train(config, workdir):
   continuous = config.training.continuous
   reduce_mean = config.training.reduce_mean
   likelihood_weighting = config.training.likelihood_weighting
+  if config.training.batch_size % num_micro_batches != 0:
+    raise ValueError(f"training.batch_size ({config.training.batch_size}) must be divisible by "
+                     f"num_micro_batches ({num_micro_batches}).")
+  logging.info("Gradient accumulation: %d micro-batches of %d samples." % (
+    num_micro_batches, config.training.batch_size // num_micro_batches))
   train_step_fn = losses.get_step_fn(sde, train=True, optimize_fn=optimize_fn,
                                      reduce_mean=reduce_mean, continuous=continuous,
-                                     likelihood_weighting=likelihood_weighting)
+                                     likelihood_weighting=likelihood_weighting,
+                                     num_micro_batches=num_micro_batches)
   eval_step_fn = losses.get_step_fn(sde, train=False, optimize_fn=optimize_fn,
                                     reduce_mean=reduce_mean, continuous=continuous,
                                     likelihood_weighting=likelihood_weighting)
@@ -169,7 +178,7 @@ def main(argv):
   logger.setLevel('INFO')
   # Run the training pipeline
   if 'pytorch' in FLAGS.config.data.dataset.lower():
-      train(FLAGS.config, FLAGS.workdir)
+      train(FLAGS.config, FLAGS.workdir, FLAGS.num_micro_batches)
   else:
       raise ValueError(f"Dataset {FLAGS.config.data.dataset} is not supported. The name must contain 'Pytorch'.")
 
