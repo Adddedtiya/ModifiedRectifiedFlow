@@ -1,7 +1,7 @@
-"""Calculate FID and IS of CIFAR-10 samples with torch-fidelity.
+"""Calculate fidelity metrics of samples with torch-fidelity.
 
 The samples are the `samples_*.npz` files that `run_lib_pytorch.evaluate` writes.
-The reference is the CIFAR-10 training set.
+The reference is a torch-fidelity dataset name (for example `cifar10-train`) or a folder of PNG and JPG images.
 """
 
 import glob
@@ -18,8 +18,13 @@ import torch_fidelity
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("samples_dir", None, "Folder with the samples_*.npz files.")
+flags.DEFINE_string("reference", "cifar10-train", "torch-fidelity dataset name, or a folder of PNG and JPG images.")
+flags.DEFINE_integer("reference_size", 0, "Resize and center crop of the reference folder images. 0: no change.")
 flags.DEFINE_integer("num_samples", 50000, "Number of samples for the metrics.")
 flags.DEFINE_integer("batch_size", 64, "Batch size for the Inception network.")
+flags.DEFINE_boolean("kid", False, "Calculate KID.")
+flags.DEFINE_integer("kid_subset_size", 1000, "Subset size for KID. Not more than the number of images in each input.")
+flags.DEFINE_boolean("prc", False, "Calculate precision and recall.")
 flags.mark_flags_as_required(["samples_dir"])
 
 
@@ -50,17 +55,26 @@ def load_samples(samples_dir, num_samples):
 def main(argv):
   samples = load_samples(FLAGS.samples_dir, FLAGS.num_samples)
   print("Samples:", samples.shape)
+  print("Reference:", FLAGS.reference)
   metrics = torch_fidelity.calculate_metrics(
     input1=SamplesDataset(samples),
-    input2="cifar10-train",
+    input2=FLAGS.reference,
     datasets_root=os.path.join(os.path.dirname(os.path.abspath(__file__)), "experiment_data"),
+    samples_resize_and_crop=FLAGS.reference_size,
     cuda=torch.cuda.is_available(),
     batch_size=FLAGS.batch_size,
     fid=True,
     isc=True,
+    kid=FLAGS.kid,
+    kid_subset_size=FLAGS.kid_subset_size,
+    prc=FLAGS.prc,
   )
   print("FID:", metrics["frechet_inception_distance"])
   print("IS:", metrics["inception_score_mean"], "+/-", metrics["inception_score_std"])
+  if FLAGS.kid:
+    print("KID:", metrics["kernel_inception_distance_mean"], "+/-", metrics["kernel_inception_distance_std"])
+  if FLAGS.prc:
+    print("Precision:", metrics["precision"], "Recall:", metrics["recall"])
 
 
 if __name__ == "__main__":
