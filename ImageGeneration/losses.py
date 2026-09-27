@@ -18,7 +18,6 @@
 
 import torch
 import torch.optim as optim
-import numpy as np
 from models import utils as mutils
 from sde_lib import RectifiedFlow
 
@@ -44,7 +43,7 @@ def optimization_manager(config):
     """Optimizes with warmup and gradient clipping (disabled if negative)."""
     if warmup > 0:
       for g in optimizer.param_groups:
-        g['lr'] = lr * np.minimum(step / warmup, 1.0)
+        g['lr'] = lr * min(step / warmup, 1.0)
     if grad_clip >= 0:
       torch.nn.utils.clip_grad_norm_(params, max_norm=grad_clip)
     optimizer.step()

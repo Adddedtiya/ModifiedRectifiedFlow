@@ -1,6 +1,11 @@
 import torch
 import os
 import logging
+import numpy as np
+
+# Old checkpoints keep the learning rate as a NumPy float64 in the optimizer state.
+NUMPY_SAFE_GLOBALS = [np._core.multiarray.scalar, (np._core.multiarray.scalar, "numpy.core.multiarray.scalar"),
+                      np.dtype, np.dtypes.Float64DType]
 
 
 def restore_checkpoint(ckpt_dir, state, device, weights_only = True):
@@ -10,7 +15,8 @@ def restore_checkpoint(ckpt_dir, state, device, weights_only = True):
                     f"Returned the same state as input")
     return state
   else:
-    loaded_state = torch.load(ckpt_dir, map_location=device, weights_only = weights_only)
+    with torch.serialization.safe_globals(NUMPY_SAFE_GLOBALS):
+      loaded_state = torch.load(ckpt_dir, map_location=device, weights_only = weights_only)
 
     state['optimizer'].load_state_dict(loaded_state['optimizer'])
     state['model'].load_state_dict(loaded_state['model'], strict=False)
