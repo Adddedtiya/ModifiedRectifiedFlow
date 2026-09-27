@@ -256,12 +256,9 @@ def evaluate(config,
     try:
       state = restore_checkpoint(ckpt_path, state, device=config.device)
     except:
-      time.sleep(60)
-      try:
-        state = restore_checkpoint(ckpt_path, state, device=config.device)
-      except:
-        time.sleep(120)
-        state = restore_checkpoint(ckpt_path, state, device=config.device)
+      #time.sleep(60)
+      print("Retrying with Weights Only = False")
+      state = restore_checkpoint(ckpt_path, state, device=config.device, weights_only = False)
     ema.copy_to(score_model.parameters())
     
     # Compute the loss function on the full evaluation dataset if loss computation is enabled
@@ -316,15 +313,20 @@ def evaluate(config,
 
         # Directory to save samples. Different for each host to avoid writing conflicts
         this_sample_dir = os.path.join(
-          eval_dir, f"ckpt_{ckpt}")
+          eval_dir, f"ckpt_{ckpt}"
+        )
         os.makedirs(this_sample_dir, exist_ok=True)
+        
         samples, n = sampling_fn(score_model)
         samples = np.clip(samples.permute(0, 2, 3, 1).cpu().numpy() * 255., 0, 255).astype(np.uint8)
         samples = samples.reshape(
-          (-1, config.data.image_size, config.data.image_size, config.data.num_channels))
+          (-1, config.data.image_size, config.data.image_size, config.data.num_channels)
+        )
+        
         # Write samples to disk
         with open(
-            os.path.join(this_sample_dir, f"samples_{r}.npz"), "wb") as fout:
+            os.path.join(this_sample_dir, f"samples_{r}.npz"), "wb"
+        ) as fout:
           io_buffer = io.BytesIO()
           np.savez_compressed(io_buffer, samples=samples)
           fout.write(io_buffer.getvalue())

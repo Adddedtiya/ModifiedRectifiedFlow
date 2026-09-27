@@ -23,7 +23,7 @@ import numpy as np
 from models.utils import from_flattened_numpy, to_flattened_numpy
 from scipy import integrate
 from models import utils as mutils
-
+from tqdm import tqdm
 
 def get_sampling_fn(config, sde, shape, inverse_scaler, eps):
   """Create a sampling function.
@@ -79,7 +79,7 @@ def get_rectified_flow_sampler(sde, shape, inverse_scaler, device='cuda'):
       ### Uniform
       dt = 1./sde.sample_N
       eps = 1e-3 # default: 1e-3
-      for i in range(sde.sample_N):
+      for i in tqdm(range(sde.sample_N), desc = 'euler'):
         
         num_t = i /sde.sample_N * (sde.T - eps) + eps
         t = torch.ones(shape[0], device=device) * num_t
@@ -126,13 +126,17 @@ def get_rectified_flow_sampler(sde, shape, inverse_scaler, device='cuda'):
         return to_flattened_numpy(drift)
 
       # Black-box ODE solver for the probability flow ODE
-      solution = integrate.solve_ivp(ode_func, (eps, sde.T), to_flattened_numpy(x),
-                                     rtol=rtol, atol=atol, method=method)
+      print("### Intergrating with Solve IVP")
+      solution = integrate.solve_ivp(
+        ode_func, (eps, sde.T), to_flattened_numpy(x), rtol=rtol, atol=atol, method=method
+      )
+
       nfe = solution.nfev
       x = torch.tensor(solution.y[:, -1]).reshape(shape).to(device).type(torch.float32)
 
       x = inverse_scaler(x)
       
+      print("### Solution Found :", int(nfe))
       return x, nfe
   
 
