@@ -213,6 +213,7 @@ def evaluate(config,
                                    reduce_mean=reduce_mean,
                                    continuous=continuous,
                                    likelihood_weighting=likelihood_weighting)
+    eval_ds_loader = torch.utils.data.DataLoader(eval_ds, batch_size=config.eval.batch_size, shuffle=False, drop_last=True, num_workers=4)
 
 
   # Create data loaders for likelihood evaluation. Only evaluate on uniformly dequantized data
@@ -227,6 +228,7 @@ def evaluate(config,
     bpd_num_repeats = 5
   else:
     raise ValueError(f"No bpd dataset {config.eval.bpd_dataset} recognized.")
+  ds_bpd_loader = torch.utils.data.DataLoader(ds_bpd, batch_size=config.eval.batch_size, shuffle=False, drop_last=True, num_workers=4)
 
   # Build the likelihood computation function when likelihood is enabled
   if config.eval.enable_bpd:
@@ -264,10 +266,9 @@ def evaluate(config,
     # Compute the loss function on the full evaluation dataset if loss computation is enabled
     if config.eval.enable_loss:
       all_losses = []
-      eval_iter = iter(eval_ds)  # pytype: disable=wrong-arg-types
+      eval_iter = iter(eval_ds_loader)
       for i, batch in enumerate(eval_iter):
-        eval_batch = torch.from_numpy(batch['image']._numpy()).to(config.device).float()
-        eval_batch = eval_batch.permute(0, 3, 1, 2)
+        eval_batch = batch.to(config.device).float()
         eval_batch = scaler(eval_batch)
         eval_loss = eval_step(state, eval_batch)
         all_losses.append(eval_loss.item())
@@ -285,18 +286,17 @@ def evaluate(config,
     if config.eval.enable_bpd:
       bpds = []
       for repeat in range(bpd_num_repeats):
-        bpd_iter = iter(ds_bpd)  # pytype: disable=wrong-arg-types
-        for batch_id in range(len(ds_bpd)):
+        bpd_iter = iter(ds_bpd_loader)
+        for batch_id in range(len(ds_bpd_loader)):
           batch = next(bpd_iter)
-          eval_batch = torch.from_numpy(batch['image']._numpy()).to(config.device).float()
-          eval_batch = eval_batch.permute(0, 3, 1, 2)
+          eval_batch = batch.to(config.device).float()
           eval_batch = scaler(eval_batch)
           bpd = likelihood_fn(score_model, eval_batch)[0]
           bpd = bpd.detach().cpu().numpy().reshape(-1)
           bpds.extend(bpd)
           logging.info(
             "ckpt: %d, repeat: %d, batch: %d, mean bpd: %6f" % (ckpt, repeat, batch_id, np.mean(np.asarray(bpds))))
-          bpd_round_id = batch_id + len(ds_bpd) * repeat
+          bpd_round_id = batch_id + len(ds_bpd_loader) * repeat
           # Save bits/dim to disk
           with open(os.path.join(eval_dir,
                                  f"{config.eval.bpd_dataset}_ckpt_{ckpt}_bpd_{bpd_round_id}.npz"),
